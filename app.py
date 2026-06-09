@@ -2,277 +2,216 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import folium
-from streamlit_folium import st_folium
-import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder
-import math
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
-# ==========================================
-# 1. PAGE CONFIGURATION & STARTUP THEME
-# ==========================================
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="AgriDrone OS",
-    page_icon="🛸",
-    layout="wide"
+    page_title="AgriSmart: Drone & Resource Optimizer",
+    page_icon="🚜",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom Startup CSS Injection
+# --- CUSTOM CSS FOR BRANDING (Green Accents) ---
 st.markdown("""
     <style>
-    .metric-card {
-        background-color: #FFFFFF;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        border-left: 4px solid #2E7D32;
-        margin-bottom: 10px;
+    :root {
+        --primary-color: #2E7D32;
     }
-    h1, h2, h3 {
+    .main-title {
         color: #1B5E20;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 700;
+    }
+    .stButton>button {
+        background-color: #2E7D32;
+        color: white;
+        border-radius: 8px;
+    }
+    .stButton>button:hover {
+        background-color: #1B5E20;
+        color: white;
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# ==========================================
-# 2. INTERNAL DATABASE & DATA SIMULATION
-# ==========================================
+# --- MOCK DATA GENERATION ---
 @st.cache_data
-def load_historical_data():
-    """Generates an embedded historical log for analytics and model training."""
-    np.random.seed(42)
-    records = 150
-    crops = ["Wheat", "Rice", "Cotton", "Maize", "Sugarcane"]
+def get_historical_data():
+    date_today = datetime.now()
+    dates = [date_today - timedelta(days=i) for i in range(30)]
+    dates.reverse()
     
-    data = {
-        "farm_name": [f"Sector Alpha-{i}" for i in range(records)],
-        "crop_type": np.random.choice(crops, records),
-        "field_area": np.random.uniform(5, 120, records).round(2),
-        "water_usage": np.random.uniform(100, 800, records).round(2),
-        "fertilizer_usage": np.random.uniform(20, 150, records).round(2),
-        "temperature": np.random.uniform(22, 40, records).round(1),
-        "operational_cost": np.random.uniform(80, 500, records).round(2),
-        "yield_tons": np.random.uniform(1.8, 7.5, records).round(2)
-    }
-    return pd.DataFrame(data)
-
-hist_df = load_historical_data()
-
-# Initialize Session Memory Store
-if "current_farm" not in st.session_state:
-    st.session_state.current_farm = {
-        "farm_name": "Green Valley Base",
-        "crop_type": "Wheat",
-        "field_area": 25.0,
-        "growth_stage": "Vegetative",
-        "soil_moisture": 45.0,
-        "infestation_level": "Low"
-    }
-
-# ==========================================
-# 3. EMBEDDED MACHINE LEARNING CORE
-# ==========================================
-@st.cache_resource
-def train_prediction_models(df):
-    """Trains live Random Forest estimators right at runtime."""
-    df_encoded = df.copy()
-    le_crop = LabelEncoder()
-    df_encoded['crop_encoded'] = le_crop.fit_transform(df_encoded['crop_type'])
+    # Simulating data
+    water_saved = np.random.uniform(30, 45, size=30).cumsum() / 30 + 25
+    chemical_eff = np.random.uniform(85, 96, size=30)
+    ndvi_index = np.random.uniform(0.6, 0.85, size=30)
     
-    # Features for Yield and Cost
-    X_yield = df_encoded[['field_area', 'crop_encoded', 'water_usage', 'fertilizer_usage', 'temperature']]
-    y_yield = df_encoded['yield_tons']
+    df = pd.DataFrame({
+        "Date": dates,
+        "Water Saved (%)": water_saved,
+        "Chemical Efficiency (%)": chemical_eff,
+        "NDVI Health Index": ndvi_index
+    })
+    return df
+
+df_metrics = get_historical_data()
+
+# --- SIDEBAR NAVIGATION ---
+st.sidebar.markdown("<h1 class='main-title'>🌱 AgriSmart</h1>", unsafe_allow_html=True)
+st.sidebar.markdown("*Precision Agriculture via Drone Tech*")
+st.sidebar.divider()
+
+page = st.sidebar.radio(
+    "Navigation Menu",
+    ["📊 Dashboard & Analytics", "🛸 Drone Mission Planner", "💧 Resource Optimizer"]
+)
+
+st.sidebar.divider()
+st.sidebar.info(
+    "💡 **Quick Tip:** Use the Drone Mission Planner to simulate optimal flight paths before calculating resource distribution."
+)
+
+# --- SECTION 1: DASHBOARD & ANALYTICS ---
+if page == "📊 Dashboard & Analytics":
+    st.markdown("<h2 class='main-title'>Dashboard & Analytics</h2>", unsafe_allow_html=True)
+    st.markdown("Real-time operational metrics and field health analytics over the past 30 days.")
+    st.write("---")
     
-    X_cost = df_encoded[['field_area', 'crop_encoded', 'fertilizer_usage', 'water_usage']]
-    y_cost = df_encoded['operational_cost']
-    
-    model_yield = RandomForestRegressor(n_estimators=50, random_state=42).fit(X_yield, y_yield)
-    model_cost = RandomForestRegressor(n_estimators=50, random_state=42).fit(X_cost, y_cost)
-    
-    return model_yield, model_cost, le_crop
-
-yield_model, cost_model, encoder_crop = train_prediction_models(hist_df)
-
-# ==========================================
-# 4. SIDEBAR MANAGEMENT CONTROL
-# ==========================================
-st.sidebar.title("🌱 Farm Field Configuration")
-st.sidebar.markdown("Update your operational workspace constraints below:")
-
-with st.sidebar.form("global_farm_form"):
-    sb_name = st.text_input("Farm Sector Identifier", value=st.session_state.current_farm["farm_name"])
-    sb_crop = st.selectbox("Current Crop Rotation", ["Wheat", "Rice", "Cotton", "Maize", "Sugarcane"])
-    sb_area = st.number_input("Total Field Area (Acres)", min_value=1.0, max_value=200.0, value=st.session_state.current_farm["field_area"])
-    sb_stage = st.selectbox("Crop Growth Stage", ["Vegetative", "Flowering", "Ripening"])
-    sb_moisture = st.slider("Measured Soil Moisture (%)", 0, 100, int(st.session_state.current_farm["soil_moisture"]))
-    sb_infestation = st.select_slider("Observed Infestation Risk", options=["None", "Low", "Medium", "High"])
-    
-    if st.sidebar.form_submit_button("Sync Changes Globally"):
-        st.session_state.current_farm = {
-            "farm_name": sb_name, "crop_type": sb_crop, "field_area": sb_area,
-            "growth_stage": sb_stage, "soil_moisture": sb_moisture, "infestation_level": sb_infestation
-        }
-        st.success("Telemetry Synced!")
-
-# Read data effortlessly out of current state memory
-farm = st.session_state.current_farm
-
-# ==========================================
-# 5. USER INTERFACE TABS CONTROL NAVIGATION
-# ==========================================
-st.title("🛸 Drone Spraying & Resource Optimizer")
-st.markdown(f"**Active Workspace Engine:** Sector `{farm['farm_name']}` | Target Canopy Type: `{farm['crop_type']}`")
-
-tab_dash, tab_flight, tab_weather, tab_health, tab_ml = st.tabs([
-    "📊 Hub Dashboard", 
-    "🛸 Flight Path Optimizer", 
-    "🌤️ Environmental Intelligence", 
-    "🌱 Canopy Health Analyzer", 
-    "📈 Predictive ML Models"
-])
-
-# ------------------------------------------
-# TAB 1: CONTROL HUB DASHBOARD
-# ------------------------------------------
-with tab_dash:
-    st.subheader("Real-Time Asset Matrix Telemetry")
-    
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f"<div class='metric-card'><b>Monitored Sector</b><h3>{farm['farm_name']}</h3></div>", unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"<div class='metric-card'><b>Target Crop</b><h3>{farm['crop_type']}</h3></div>", unsafe_allow_html=True)
-    with k3:
-        st.markdown(f"<div class='metric-card'><b>Assigned Scale</b><h3>{farm['field_area']} Acres</h3></div>", unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"<div class='metric-card'><b>Growth Stage</b><h3>{farm['growth_stage']}</h3></div>", unsafe_allow_html=True)
+    # Metric Cards
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(label="Total Area Covered", value="1,248 ha", delta="+42 ha today")
+    with col2:
+        st.metric(label="Water Saved", value="38.4 %", delta="+1.2% vs last week")
+    with col3:
+        st.metric(label="Chemical Efficiency", value="94.2 %", delta="Optimal Range", delta_color="normal")
+    with col4:
+        st.metric(label="Active Drones", value="4 / 6", delta="2 Fleet Idle")
         
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.write("**Real-Time Volumetric Soil Moisture Saturation Status:**")
-    st.progress(int(farm["soil_moisture"]))
+    st.write("---")
     
-    st.markdown("---")
-    st.subheader("Historical Analytics Profile Distributions")
-    fig_hist = px.histogram(hist_df, x="field_area", color="crop_type", title="Regional Farm Land Scale Comparisons", 
-                            color_discrete_sequence=px.colors.sequential.Darkmint, barmode="overlay")
-    st.plotly_chart(fig_hist, use_container_width=True)
+    # Interactive Charts
+    tab1, tab2 = st.tabs(["📈 Resource Efficiency Trends", "🌿 Field Health Index (NDVI)"])
+    
+    with tab1:
+        st.subheader("30-Day Resource Savings Trend")
+        fig_resource = px.line(
+            df_metrics, x="Date", y=["Water Saved (%)", "Chemical Efficiency (%)"],
+            labels={"value": "Percentage (%)", "variable": "Metric"},
+            color_discrete_sequence=["#2E7D32", "#81C784"]
+        )
+        fig_resource.update_layout(hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_resource, use_container_width=True)
+        
+    with tab2:
+        st.subheader("Normalized Difference Vegetation Index (NDVI)")
+        fig_ndvi = px.area(
+            df_metrics, x="Date", y="NDVI Health Index",
+            color_discrete_sequence=["#4CAF50"],
+            labels={"NDVI Health Index": "NDVI Level"}
+        )
+        fig_ndvi.update_yaxes(range=[0.5, 1.0])
+        fig_ndvi.update_layout(margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_ndvi, use_container_width=True)
 
-# ------------------------------------------
-# TAB 2: FLIGHT PATH OPTIMIZER & MAPS
-# ------------------------------------------
-with tab_flight:
-    st.subheader("Precision Navigation Logistics Configuration")
+# --- SECTION 2: DRONE MISSION PLANNER ---
+elif page == "🛸 Drone Mission Planner":
+    st.markdown("<h2 class='main-title'>Drone Mission Planner</h2>", unsafe_allow_html=True)
+    st.markdown("Configure field operational parameters to compute optimized autonomous flight paths.")
+    st.write("---")
     
-    c_p, c_r = st.columns([1, 2])
+    col1, col2 = st.columns([1, 2])
     
-    with c_p:
-        spray_mode = st.selectbox("Target Delivery Vector", ["Pesticide", "Fertilizer", "Water"])
-        tank_cap = st.slider("UAV Payload Fluid Capacity (Liters)", 10, 50, 16)
-        flight_speed = st.slider("Target Trajectory Speed (m/s)", 3, 15, 8)
-        bat_cap = st.slider("Battery Cell Pack Rating (Ah)", 10, 30, 16)
+    with col1:
+        st.subheader("Parameters")
+        crop_type = st.selectbox("Crop Type", ["Corn", "Wheat", "Soy", "Rice"], help="Select target crop for localized algorithm tuning.")
+        field_size = st.slider("Field Size (hectares)", min_value=1, max_value=500, value=75, step=5)
+        weather = st.selectbox("Current Weather Conditions", ["Sunny", "Windy", "Rainy"])
         
-        # Flight physics solver engine
-        spray_configs = {"Pesticide": 15, "Fertilizer": 25, "Water": 50}
-        vol_per_acre = spray_configs.get(spray_mode, 30)
-        total_vol = farm["field_area"] * vol_per_acre
+        # Safety Environmental Logic
+        if weather in ["Windy", "Rainy"]:
+            st.warning(f"⚠️ **Hazard Warning:** Flight conditions are **{weather}**. Drone deployment might be hazardous. Proceed with extreme caution.")
+        else:
+            st.success("☀️ **Flight Status:** Weather Clear. Optimal deployment environment.")
+            
+        generate_btn = st.button("Generate Flight Path", use_container_width=True)
         
-        flight_dist_km = round((farm["field_area"] * 4046.86 / 5) / 1000, 2)
-        flight_time_min = round((flight_dist_km * 1000 / flight_speed) / 60, 1)
-        refills = max(0, math.ceil(total_vol / tank_cap) - 1)
-        
-    with c_r:
-        st.markdown("**Calculated Mission Parameters Output:**")
-        rc1, rc2, rc3 = st.columns(3)
-        rc1.metric("Total Fluid Target", f"{total_vol} Liters")
-        rc2.metric("Total Flight Trajectory", f"{flight_dist_km} KM")
-        rc3.metric("Refill Breaks Required", f"{refills}")
-        
-        st.markdown("<br>**Estimated Efficiency Savings Percentage (vs Traditional Flooding Systems):**")
-        sc1, sc2 = st.columns(2)
-        sc1.metric("Water Footprint Decrease", "72.4%", delta="Resource Reduction")
-        sc2.metric("Time Asset Conservation", "84.1%", delta="Operational Optimization")
+    with col2:
+        st.subheader("Optimized Flight Vector Map")
+        if generate_btn:
+            with st.spinner("Calculating optimal patterns to minimize spray drift..."):
+                # Mock path coordinate generation
+                np.random.seed(42)
+                x_coords = np.linspace(0, 10, 15)
+                # Generate a zigzag pattern for drone spraying route
+                y_coords = [i if idx % 2 == 0 else i + np.random.uniform(-0.5, 0.5) for idx, i in enumerate(np.sin(x_coords) * 2 + 5)]
+                
+                # Plotly path visualization
+                fig_path = go.Figure()
+                
+                # Draw field boundaries
+                fig_path.add_trace(go.Scatter(
+                    x=[0, 10, 10, 0, 0], y=[0, 0, 10, 10, 0],
+                    fill="toself", fillcolor="rgba(76, 175, 80, 0.1)",
+                    line=dict(color="#4CAF50", dash="dash"), name="Field Boundary"
+                ))
+                
+                # Draw flight path route
+                fig_path.add_trace(go.Scatter(
+                    x=x_coords, y=y_coords,
+                    mode="lines+markers+text",
+                    line=dict(color="#1B5E20", width=3),
+                    marker=dict(size=8, color="#FF9800"),
+                    name="Optimized Drone Path"
+                ))
+                
+                fig_path.update_layout(
+                    xaxis_title="Field Width Layout (Relative)",
+                    yaxis_title="Field Length Layout (Relative)",
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=400
+                )
+                
+                st.toast("Flight path generated successfully!", icon="✅")
+                st.plotly_chart(fig_path, use_container_width=True)
+                st.success(f"🎯 Path generated for **{field_size} hectares** of **{crop_type}**. Estimated Time of Completion: **{max(12, int(field_size * 0.4))} minutes**.")
+        else:
+            st.info("💡 Adjust the mission configurations on the left panel and click **'Generate Flight Path'** to view the telemetry grid simulation.")
 
-    st.markdown("---")
-    st.subheader("Dynamic Flight Array Trajectory Mapping Canvas")
+# --- SECTION 3: RESOURCE OPTIMIZER ---
+elif page == "💧 Resource Optimizer":
+    st.markdown("<h2 class='main-title'>Resource Optimizer</h2>", unsafe_allow_html=True)
+    st.markdown("Evaluate waste margins and compare traditional resource inputs against AI-optimized drone capabilities.")
+    st.write("---")
     
-    lat, lon = 33.7743, 72.7521
-    m = folium.Map(location=[lat, lon], zoom_start=15, tiles="OpenStreetMap")
-    coords = [[lat-0.002, lon-0.002], [lat-0.002, lon+0.002], [lat+0.002, lon+0.002], [lat+0.002, lon-0.002]]
-    folium.Polygon(locations=coords, color="#2E7D32", weight=3, fill=True, fill_opacity=0.1).add_to(m)
-    for i in range(len(coords)-1):
-        folium.PolyLine(locations=[coords[i], coords[i+1]], color="cyan", weight=2).add_to(m)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Manual Resource Baseline Input")
+        manual_water = st.number_input("Manual Water Input (Liters per hectare)", min_value=10, max_value=5000, value=1200, step=50)
+        manual_pesticide = st.number_input("Manual Chemical Input (Liters per hectare)", min_value=1.0, max_value=100.0, value=15.0, step=0.5)
         
-    st_folium(m, width=1100, height=350)
-
-# ------------------------------------------
-# TAB 3: ENVIRONMENTAL WEATHER INTELLIGENCE
-# ------------------------------------------
-with tab_weather:
-    st.subheader("Atmospheric Risk Analysis Framework")
-    
-    wc1, wc2 = st.columns(2)
-    with wc1:
-        w_temp = st.slider("Ambient Heat Index (°C)", 15, 48, 31)
-        w_wind = st.slider("Velocity Cross-Winds (km/h)", 0, 35, 12)
-    with wc2:
-        w_humid = st.slider("Relative Air Humidity (%)", 10, 100, 52)
+        # Optimization Math Logic (Simulated 35% reduction optimization curve)
+        saving_ratio = 0.35
+        drone_water = round(manual_water * (1 - saving_ratio), 1)
+        drone_pesticide = round(manual_pesticide * (1 - (saving_ratio + 0.05)), 1)
         
-    st.markdown("<br>**AI Flight Clearance Decision Output:**")
-    if w_wind > 18:
-        st.error("🚨 CRITICAL HAZARD: High velocity cross-winds will create excessive pesticide drift. Ground operations immediately.")
-    elif w_temp > 38:
-        st.warning("⚠️ EVAPORATION RISK: Temperatures exceed extreme spray thresholds. Droplets risk flash evaporation before canopy contact.")
-    else:
-        st.success("✅ OPTIMAL OPERATIONS: Environment meets clean tolerances. Proceed with scheduled autonomous flight maps.")
-
-# ------------------------------------------
-# TAB 4: CANOPY HEALTH SPECTRAL CORES
-# ------------------------------------------
-with tab_health:
-    st.subheader("Simulated NDVI Spatial Biomass Distribution")
-    
-    # Generate spatial mock grid array data Matrix
-    grid = np.random.rand(40, 40)
-    if farm["infestation_level"] == "High": grid *= 0.35
-    elif farm["infestation_level"] == "Medium": grid *= 0.65
-    else: grid *= 0.92
-    
-    fig_map, ax = plt.subplots(figsize=(10, 3.5))
-    cax = ax.imshow(grid, cmap="RdYlGn", origin="lower", vmin=0, vmax=1)
-    fig_map.colorbar(cax, label="Calculated Biomass Vitality Scale")
-    ax.axis('off')
-    st.pyplot(fig_map)
-    
-    st.markdown(f"**Automated Diagnostic Assessment:** Cluster metrics tracking shows *{farm['infestation_level']}* localized canopy stress fields patterns.")
-
-# ------------------------------------------
-# TAB 5: PREDICTIVE MACHINE LEARNING CORE
-# ------------------------------------------
-with tab_ml:
-    st.subheader("Advanced Inference Yield & Operational Overhead Engine")
-    
-    # Safely convert category types strings to match numerical fitted values arrays
-    try:
-        encoded_crop_val = encoder_crop.transform([farm["crop_type"]])[0]
-    except:
-        encoded_crop_val = 0
+        saved_water = round(manual_water - drone_water, 1)
+        saved_pesticide = round(manual_pesticide - drone_pesticide, 1)
         
-    mock_water = farm["field_area"] * 450.0 / 25.0
-    mock_fertilizer = farm["field_area"] * 85.0 / 25.0
+    with col2:
+        st.subheader("AI-Optimized Drone Allocation")
+        
+        # Display Comparative Metrics
+        st.metric("Optimized Drone Water Volume", f"{drone_water} L/ha", delta=f"-{saving_ratio*100:.0f}% Reduction", delta_color="inverse")
+        st.metric("Optimized Drone Chemical Volume", f"{drone_pesticide} L/ha", delta=f"-{(saving_ratio+0.05)*100:.0f}% Reduction", delta_color="inverse")
+        
+    st.write("---")
+    st.subheader("Optimization Analysis Summary")
     
-    # Run scikit-learn model object array vectors prediction
-    input_vector_yield = np.array([[farm["field_area"], encoded_crop_val, mock_water, mock_fertilizer, 31.0]])
-    input_vector_cost = np.array([[farm["field_area"], encoded_crop_val, mock_fertilizer, mock_water]])
-    
-    pred_yield = round(yield_model.predict(input_vector_yield)[0], 2)
-    pred_cost = round(cost_model.predict(input_vector_cost)[0], 2)
-    
-    mc1, mc2 = st.columns(2)
-    mc1.metric("ML Forecasted Seasonal Biomass Yield Output", f"{pred_yield} Tons")
-    mc2.metric("ML Estimated Fleet Mechanical Maintenance Overhead", f"${pred_cost}")
-    
-    st.markdown("---")
-    st.subheader("Export Center System Registry")
-    csv_string = hist_df.to_csv(index=False).encode('utf-8')
-    st.download_button("Download System Log Telemetry History File (.CSV)", data=csv_string, file_name="agridrone_telemetry_report.csv", mime="text/csv")
+    # Dynamic Dataframe presentation
+    summary_data = {
+        "Resource Factor": ["Water Volume (L/ha)", "Chemical Vector (L/ha)"],
+        "Traditional Manual Value": [manual_water, manual_pesticide],
