@@ -1,217 +1,296 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime, timedelta
 
-# --- PAGE CONFIGURATION ---
+# ==========================================
+# 1. PAGE CONFIGURATION & THEME SETUP
+# ==========================================
 st.set_page_config(
-    page_title="AgriSmart: Drone & Resource Optimizer",
-    page_icon="🚜",
+    page_title="AgriSky: Drone Spraying & Resource Optimizer",
+    page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM CSS FOR BRANDING (Green Accents) ---
+# Premium UI/UX Custom CSS Injection
 st.markdown("""
     <style>
-    :root {
-        --primary-color: #2E7D32;
+    /* Main Background & Text Colors */
+    .stApp {
+        background-color: #121824;
+        color: #E2E8F0;
     }
-    .main-title {
-        color: #1B5E20;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 700;
+    
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] {
+        background-color: #1E293B !important;
+        border-right: 1px solid #2D3748;
     }
+    
+    /* Premium Metric Card Styling */
+    div[data-testid="stMetricSimpleValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: #2ECC71 !important;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.95rem !important;
+        color: #94A3B8 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Custom Card Containers */
+    .metric-card {
+        background-color: #1E293B;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 5px solid #2ECC71;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-bottom: 15px;
+    }
+    
+    /* Customizing Buttons */
     .stButton>button {
-        background-color: #2E7D32;
-        color: white;
-        border-radius: 8px;
+        background-color: #2ECC71 !important;
+        color: #121824 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 0.6rem 2rem !important;
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
-        background-color: #1B5E20;
-        color: white;
+        background-color: #27AE60 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+    }
+    
+    /* Tables and DataFrames styling */
+    .dataframe {
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+    
+    /* Success block override */
+    div[data-testid="stNotification"] {
+        background-color: #1C3D27 !important;
+        border: 1px solid #2ECC71 !important;
+        color: #EAFAF1 !important;
+        border-radius: 10px;
+    }
+    
+    h1, h2, h3 {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- MOCK DATA GENERATION ---
+# ==========================================
+# 2. MOCK DATA GENERATION
+# ==========================================
 @st.cache_data
-def get_historical_data():
-    date_today = datetime.now()
-    dates = [date_today - timedelta(days=i) for i in range(30)]
-    dates.reverse()
+def get_drone_telemetry():
+    # Mock coordinates centered around a local modern farm estate plot
+    base_lat, base_lon = 33.78, 72.72
+    drone_ids = [f"AGRI-DRONE-0{i}" for i in range(1, 5)]
+    payloads = ["15L", "20L", "15L", "25L"]
+    tasks = ["Spraying", "Returning to Base", "Charging", "Spraying"]
+    batteries = ["76%", "18%", "95%", "42%"]
     
-    # Simulating data
-    water_saved = np.random.uniform(30, 45, size=30).cumsum() / 30 + 25
-    chemical_eff = np.random.uniform(85, 96, size=30)
-    ndvi_index = np.random.uniform(0.6, 0.85, size=30)
-    
-    df = pd.DataFrame({
-        "Date": dates,
-        "Water Saved (%)": water_saved,
-        "Chemical Efficiency (%)": chemical_eff,
-        "NDVI Health Index": ndvi_index
+    df_status = pd.DataFrame({
+        "Drone ID": drone_ids,
+        "Payload Capacity": payloads,
+        "Current Task": tasks,
+        "Battery Status": batteries
     })
-    return df
-
-df_metrics = get_historical_data()
-
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.markdown("<h1 class='main-title'>🌱 AgriSmart</h1>", unsafe_allow_html=True)
-st.sidebar.markdown("*Precision Agriculture via Drone Tech*")
-st.sidebar.divider()
-
-page = st.sidebar.radio(
-    "Navigation Menu",
-    ["📊 Dashboard & Analytics", "🛸 Drone Mission Planner", "💧 Resource Optimizer"]
-)
-
-st.sidebar.divider()
-st.sidebar.info(
-    "💡 **Quick Tip:** Use the Drone Mission Planner to simulate optimal flight paths before calculating resource distribution."
-)
-
-# --- SECTION 1: DASHBOARD & ANALYTICS ---
-if page == "📊 Dashboard & Analytics":
-    st.markdown("<h2 class='main-title'>Dashboard & Analytics</h2>", unsafe_allow_html=True)
-    st.markdown("Real-time operational metrics and field health analytics over the past 30 days.")
-    st.write("---")
     
-    # Metric Cards
+    # Random offset generation for active flight simulation path
+    np.random.seed(42)
+    map_data = pd.DataFrame(
+        np.random.randn(15, 2) / [300, 300] + [base_lat, base_lon],
+        columns=['lat', 'lon']
+    )
+    return df_status, map_data
+
+@st.cache_data
+def get_historical_analytics():
+    dates = [datetime.now() - timedelta(days=x) for x in range(180, 0, -30)]
+    dates_str = [d.strftime("%b %Y") for d in dates]
+    return pd.DataFrame({
+        "Month": dates_str,
+        "Traditional Liters Used": [2400, 2600, 2300, 2700, 2500, 2800],
+        "AgriSky Precision Liters": [850, 910, 800, 930, 870, 960]
+    })
+
+df_status, map_data = get_drone_telemetry()
+df_history = get_historical_analytics()
+
+# ==========================================
+# 3. SIDEBAR NAVIGATION
+# ==========================================
+st.sidebar.image("https://img.icons8.com/external-flat-icons-inoki-mithi/100/000000/external-drone-smart-farm-flat-icons-inoki-mithi.png", width=80)
+st.sidebar.title("AgriSky Control")
+st.sidebar.markdown("*ICT for Precision Agriculture*")
+st.sidebar.markdown("---")
+
+menu = st.sidebar.radio(
+    "Navigate System:",
+    ["🛰️ Live Flight Dashboard", "📊 Resource Optimizer", "📈 Field Analytics"],
+    index=0
+)
+
+st.sidebar.markdown("---")
+st.sidebar.info("🌐 **System Status:** Online\n\n🛰️ **GNSS Lock:** Excellent (14 Sats)\n\n🔋 **Base Station:** 98%")
+
+# ==========================================
+# TAB 1: LIVE FLIGHT DASHBOARD
+# ==========================================
+if menu == "🛰️ Live Flight Dashboard":
+    st.title("🛰️ Live Flight Dashboard")
+    st.markdown("Real-time telemetry and active mission profiles for precision drone deployment.")
+    
+    # Top Row: Metric Cards
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="Total Area Covered", value="1,248 ha", delta="+42 ha today")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric(label="Active Fleet Drones", value="2 / 4", delta="1 En-Route")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col2:
-        st.metric(label="Water Saved", value="38.4 %", delta="+1.2% vs last week")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric(label="Area Covered today", value="42.8 Ha", delta="+5.2 Ha / hr")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col3:
-        st.metric(label="Chemical Efficiency", value="94.2 %", delta="Optimal Range", delta_color="normal")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric(label="Resource Saved", value="64.2 %", delta="vs Traditional", delta_color="normal")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col4:
-        st.metric(label="Active Drones", value="4 / 6", delta="2 Fleet Idle")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric(label="Fleet Avg Battery", value="57.5 %", delta="-12% / mission")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-    st.write("---")
+    st.markdown("### 🗺️ Live Target Plot Telemetry")
+    # Streamlit native high-contrast map rendering over farm area
+    st.map(map_data, zoom=14, use_container_width=True)
     
-    # Interactive Charts
-    tab1, tab2 = st.tabs(["📈 Resource Efficiency Trends", "🌿 Field Health Index (NDVI)"])
-    
-    with tab1:
-        st.subheader("30-Day Resource Savings Trend")
-        fig_resource = px.line(
-            df_metrics, x="Date", y=["Water Saved (%)", "Chemical Efficiency (%)"],
-            labels={"value": "Percentage (%)", "variable": "Metric"},
-            color_discrete_sequence=["#2E7D32", "#81C784"]
-        )
-        fig_resource.update_layout(hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig_resource, use_container_width=True)
-        
-    with tab2:
-        st.subheader("Normalized Difference Vegetation Index (NDVI)")
-        fig_ndvi = px.area(
-            df_metrics, x="Date", y="NDVI Health Index",
-            color_discrete_sequence=["#4CAF50"],
-            labels={"NDVI Health Index": "NDVI Level"}
-        )
-        fig_ndvi.update_yaxes(range=[0.5, 1.0])
-        fig_ndvi.update_layout(margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig_ndvi, use_container_width=True)
+    st.markdown("### 📋 Active Fleet Status Matrix")
+    st.dataframe(df_status, use_container_width=True, hide_index=True)
 
-# --- SECTION 2: DRONE MISSION PLANNER ---
-elif page == "🛸 Drone Mission Planner":
-    st.markdown("<h2 class='main-title'>Drone Mission Planner</h2>", unsafe_allow_html=True)
-    st.markdown("Configure field operational parameters to compute optimized autonomous flight paths.")
-    st.write("---")
+# ==========================================
+# TAB 2: RESOURCE & SPRAYING OPTIMIZER
+# ==========================================
+elif menu == "📊 Resource Optimizer":
+    st.title("📊 Resource & Spraying Optimizer")
+    st.markdown("Configure tactical input attributes to compute ultra-precise chemical and mechanical requirements.")
     
-    col1, col2 = st.columns([1, 2])
+    col_input, col_output = st.columns([1, 1.2])
     
-    with col1:
-        st.subheader("Parameters")
-        crop_type = st.selectbox("Crop Type", ["Corn", "Wheat", "Soy", "Rice"], help="Select target crop for localized algorithm tuning.")
-        field_size = st.slider("Field Size (hectares)", min_value=1, max_value=500, value=75, step=5)
-        weather = st.selectbox("Current Weather Conditions", ["Sunny", "Windy", "Rainy"])
+    with col_input:
+        st.markdown("### 🌾 Target Parameters")
+        crop_type = st.selectbox("Select Target Crop Profile:", ["Wheat", "Rice", "Maize", "Sugarcane"])
+        field_size = st.slider("Field Dimension Layout (Hectares):", min_value=1, max_value=500, value=25)
+        infestation = st.selectbox("Observed Pest/Infestation Severity Index:", ["Low", "Medium", "High"])
         
-        # Safety Environmental Logic
-        if weather in ["Windy", "Rainy"]:
-            st.warning(f"⚠️ **Hazard Warning:** Flight conditions are **{weather}**. Drone deployment might be hazardous. Proceed with extreme caution.")
-        else:
-            st.success("☀️ **Flight Status:** Weather Clear. Optimal deployment environment.")
+        st.markdown("---")
+        optimize_btn = st.button("🚀 Optimize Resource Allocation")
+        
+    with col_output:
+        st.markdown("### 🎯 Optimization Engineering Outputs")
+        
+        # Calculation parameters based on agronomic logic profiles
+        base_spray_per_ha = {"Wheat": 15, "Rice": 20, "Maize": 18, "Sugarcane": 25}[crop_type]
+        severity_multiplier = {"Low": 0.8, "Medium": 1.0, "High": 1.4}[infestation]
+        
+        # Drone precision parameters
+        optimized_liquid = round(field_size * base_spray_per_ha * severity_multiplier, 1)
+        traditional_liquid = round(optimized_liquid * 2.8, 1) # Traditional uses ~2.8x more runoff water/chemicals
+        
+        flight_time_mins = round((field_size * 8), 1) # Assumes avg 8 mins per hectare coverage
+        battery_swaps = max(0, int(flight_time_mins // 25)) # 25-min industrial drone battery limit
+        chemical_savings_cost = int((traditional_liquid - optimized_liquid) * 350) # Mock conversion factor
+        
+        if optimize_btn:
+            # Output Data Cards
+            c1, c2 = st.columns(2)
+            with c1:
+                st.metric(label="Precision Liquid Required", value=f"{optimized_liquid} L")
+            with c2:
+                st.metric(label="Est. Mission Airtime", value=f"{flight_time_mins} Mins", delta=f"{battery_swaps} Swaps Required", delta_color="inverse")
+                
+            # Success Announcement Panel
+            st.success(f"""
+                ### 💰 Resource Conservation Impact Summary
+                * **Chemical Substrate Saved:** {round(traditional_liquid - optimized_liquid, 1)} Liters target reduction.
+                * **Mitigated Runoff Waste:** Precision targeting saves estimated input overhead.
+            """)
             
-        generate_btn = st.button("Generate Flight Path", use_container_width=True)
-        
-    with col2:
-        st.subheader("Optimized Flight Vector Map")
-        if generate_btn:
-            with st.spinner("Calculating optimal patterns to minimize spray drift..."):
-                # Mock path coordinate generation
-                np.random.seed(42)
-                x_coords = np.linspace(0, 10, 15)
-                # Generate a zigzag pattern for drone spraying route
-                y_coords = [i if idx % 2 == 0 else i + np.random.uniform(-0.5, 0.5) for idx, i in enumerate(np.sin(x_coords) * 2 + 5)]
-                
-                # Plotly path visualization
-                fig_path = go.Figure()
-                
-                # Draw field boundaries
-                fig_path.add_trace(go.Scatter(
-                    x=[0, 10, 10, 0, 0], y=[0, 0, 10, 10, 0],
-                    fill="toself", fillcolor="rgba(76, 175, 80, 0.1)",
-                    line=dict(color="#4CAF50", dash="dash"), name="Field Boundary"
-                ))
-                
-                # Draw flight path route
-                fig_path.add_trace(go.Scatter(
-                    x=x_coords, y=y_coords,
-                    mode="lines+markers+text",
-                    line=dict(color="#1B5E20", width=3),
-                    marker=dict(size=8, color="#FF9800"),
-                    name="Optimized Drone Path"
-                ))
-                
-                fig_path.update_layout(
-                    xaxis_title="Field Width Layout (Relative)",
-                    yaxis_title="Field Length Layout (Relative)",
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    height=400
-                )
-                
-                st.toast("Flight path generated successfully!", icon="✅")
-                st.plotly_chart(fig_path, use_container_width=True)
-                st.success(f"🎯 Path generated for **{field_size} hectares** of **{crop_type}**. Estimated Time of Completion: **{max(12, int(field_size * 0.4))} minutes**.")
+            # Interactive Chart Visualizer Comparison
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                name='Traditional Volumetric Waste',
+                x=[crop_type], y=[traditional_liquid],
+                marker_color='#E74C3C',
+                text=[f"{traditional_liquid}L"], textposition='auto'
+            ))
+            fig.add_trace(go.Bar(
+                name='AgriSky Ultra-Precision Volume',
+                x=[crop_type], y=[optimized_liquid],
+                marker_color='#2ECC71',
+                text=[f"{optimized_liquid}L"], textposition='auto'
+            ))
+            
+            fig.update_layout(
+                title=f"Volumetric Resource Comparison for {field_size} Ha of {crop_type}",
+                barmode='group',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF'),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                yaxis=dict(gridcolor='#2D3748', title="Total Liters (Water + Active Substrate)")
+            )
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("💡 Adjust the mission configurations on the left panel and click **'Generate Flight Path'** to view the telemetry grid simulation.")
+            st.info("Adjust parameter targets on the left panel and click 'Optimize Resource Allocation' to generate system models.")
 
-# --- SECTION 3: RESOURCE OPTIMIZER ---
-elif page == "💧 Resource Optimizer":
-    st.markdown("<h2 class='main-title'>Resource Optimizer</h2>", unsafe_allow_html=True)
-    st.markdown("Evaluate waste margins and compare traditional resource inputs against AI-optimized drone capabilities.")
-    st.write("---")
+# ==========================================
+# TAB 3: FIELD ANALYTICS & INSIGHTS
+# ==========================================
+else:
+    st.title("📈 Field Analytics & Historical Insights")
+    st.markdown("Macro tracking trends evaluating smart structural field integrations across the multi-month season layout.")
     
-    col1, col2 = st.columns(2)
+    # Line chart comparing seasonal consumption patterns
+    fig_history = px.line(
+        df_history, 
+        x="Month", 
+        y=["Traditional Liters Used", "AgriSky Precision Liters"],
+        labels={"value": "Total Volumetric Consumption (L)", "variable": "Methodology"},
+        title="6-Month Longitudinal Environmental Resource Conservation Report",
+        color_discrete_sequence=["#E74C3C", "#2ECC71"]
+    )
     
-    with col1:
-        st.subheader("Manual Resource Baseline Input")
-        manual_water = st.number_input("Manual Water Input (Liters per hectare)", min_value=10, max_value=5000, value=1200, step=50)
-        manual_pesticide = st.number_input("Manual Chemical Input (Liters per hectare)", min_value=1.0, max_value=100.0, value=15.0, step=0.5)
-        
-        # Optimization Math Logic (Simulated 35% reduction optimization curve)
-        saving_ratio = 0.35
-        drone_water = round(manual_water * (1 - saving_ratio), 1)
-        drone_pesticide = round(manual_pesticide * (1 - (saving_ratio + 0.05)), 1)
-        
-        saved_water = round(manual_water - drone_water, 1)
-        saved_pesticide = round(manual_pesticide - drone_pesticide, 1)
-        
-    with col2:
-        st.subheader("AI-Optimized Drone Allocation")
-        
-        # Display Comparative Metrics
-        st.metric("Optimized Drone Water Volume", f"{drone_water} L/ha", delta=f"-{saving_ratio*100:.0f}% Reduction", delta_color="inverse")
-        st.metric("Optimized Drone Chemical Volume", f"{drone_pesticide} L/ha", delta=f"-{(saving_ratio+0.05)*100:.0f}% Reduction", delta_color="inverse")
-        
-    st.write("---")
-    st.subheader("Optimization Analysis Summary")
+    fig_history.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#FFFFFF'),
+        xaxis=dict(gridcolor='#2D3748'),
+        yaxis=dict(gridcolor='#2D3748')
+    )
     
-    # Dynamic Dataframe presentation
-    summary_data = {
-        "Resource Factor": ["Water Volume (L/ha)", "Chemical Vector (L/ha)"],
-        "Traditional Manual Value": [manual_water, manual_pesticide],
+    st.plotly_chart(fig_history, use_container_width=True)
+    
+    # Data Download Block
+    st.markdown("### 📑 Export Analytical Field Dataset")
+    st.markdown("Extract full precision system telemetry telemetry matrices for localized verification or institutional reporting.")
+    
+    csv_data = df_history.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Seasonal Performance Log (.CSV)",
+        data=csv_data,
+        file_name="AgriSky_Seasonal_Resource_Report.csv",
+        mime="text/csv"
+    )
